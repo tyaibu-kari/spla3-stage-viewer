@@ -366,9 +366,21 @@ function savePlayers() {
 }
 
 function rangeScaleKey(item) { return `${STORAGE_PREFIX}_rangescale::${item.mode}::${item.base}`; }
+// あらかじめ同梱された初期値(rangescale.js の DEFAULT_RANGE_SCALE)を、
+// このユーザーがまだ自分で校正していないステージにだけ適用する。
+// "モード::ステージ名" の個別指定を優先し、無ければ "*::ステージ名"(全モード共通)を見る。
+function findDefaultRangeScale(item) {
+  if (typeof DEFAULT_RANGE_SCALE === "undefined") return null;
+  return DEFAULT_RANGE_SCALE[`${item.mode}::${item.base}`]
+    || DEFAULT_RANGE_SCALE[`*::${item.base}`]
+    || null;
+}
 function loadRangeScale(item) {
-  try { return JSON.parse(localStorage.getItem(rangeScaleKey(item)) || "null"); }
-  catch (e) { return null; }
+  try {
+    const saved = JSON.parse(localStorage.getItem(rangeScaleKey(item)) || "null");
+    if (saved) return saved;
+  } catch (e) { /* ignore, fall through to default */ }
+  return findDefaultRangeScale(item);
 }
 function saveRangeScale() {
   if (!currentItem) return;
@@ -377,7 +389,13 @@ function saveRangeScale() {
 function updateRangeScaleLabel() {
   const el = $("rangeScaleLabel");
   if (!el) return;
-  el.textContent = rangeScale ? `射程スケール: 1目盛=${rangeScale.pxPerUnit.toFixed(1)}px` : "射程スケール: 未設定";
+  if (!rangeScale) { el.textContent = "射程スケール: 未設定"; return; }
+  let ownSaved = false;
+  if (currentItem) {
+    try { ownSaved = !!localStorage.getItem(rangeScaleKey(currentItem)); } catch (e) {}
+  }
+  const suffix = ownSaved ? "" : "(初期値・再校正できます)";
+  el.textContent = `射程スケール: 1目盛=${rangeScale.pxPerUnit.toFixed(1)}px ${suffix}`;
 }
 
 function specialsKey(item) { return `${STORAGE_PREFIX}_specials::${item.mode}::${item.base}`; }
