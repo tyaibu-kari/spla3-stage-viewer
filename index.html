@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>スプラ ステージビューアー</title>
+<style>
+  :root{
+    --bg0:#14161c; --bg1:#1c1f27; --bg2:#242833; --bg3:#2e3340;
+    --line:#3a4050; --text:#e8eaf0; --sub:#9aa2b4; --accent:#4fc3f7; --accent2:#ff7043;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;height:100%;background:var(--bg0);color:var(--text);
+    font-family:"Segoe UI","Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;}
+  #app{display:flex;flex-direction:column;height:100vh;}
+  header{display:flex;align-items:center;gap:12px;padding:8px 14px;background:var(--bg1);
+    border-bottom:1px solid var(--line);flex-shrink:0;}
+  header h1{font-size:16px;margin:0;font-weight:600;white-space:nowrap;}
+  header .spacer{flex:1;}
+  header .status{color:var(--sub);font-size:12px;max-width:40%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  button{cursor:pointer;font-family:inherit;}
+  .btn{background:var(--bg3);color:var(--text);border:1px solid var(--line);border-radius:6px;
+    padding:6px 12px;font-size:13px;}
+  .btn:hover{background:#3a4152;}
+  .btn.primary{background:var(--accent);color:#08202b;border-color:var(--accent);font-weight:600;}
+  .btn.primary:hover{filter:brightness(1.08);}
+  .btn.small{padding:3px 8px;font-size:12px;}
+  .btn.active{outline:2px solid var(--accent);}
+  .btn:disabled{opacity:.4;cursor:not-allowed;}
+  #main{flex:1;display:flex;min-height:0;}
+  #sidebar{width:270px;flex-shrink:0;background:var(--bg1);border-right:1px solid var(--line);
+    display:flex;flex-direction:column;min-height:0;}
+  #modeTabs{display:flex;flex-wrap:wrap;gap:4px;padding:10px;border-bottom:1px solid var(--line);}
+  #modeTabs button{flex:1 1 auto;}
+  #stageSearch{margin:8px 10px;padding:6px 8px;border-radius:6px;border:1px solid var(--line);
+    background:var(--bg2);color:var(--text);font-size:13px;}
+  #stageList{list-style:none;margin:0;padding:4px 6px 20px;overflow-y:auto;flex:1;}
+  #stageList li{margin:2px 0;}
+  #stageList li button{width:100%;text-align:left;background:transparent;border:1px solid transparent;
+    color:var(--text);padding:7px 10px;border-radius:6px;font-size:13px;}
+  #stageList li button:hover{background:var(--bg2);}
+  #stageList li button.active{background:var(--bg3);border-color:var(--accent);color:var(--accent);}
+  #viewer{flex:1;display:flex;flex-direction:column;min-width:0;min-height:0;}
+  #viewTabs{display:flex;gap:6px;padding:8px 12px;background:var(--bg1);border-bottom:1px solid var(--line);}
+  .toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:8px 12px;
+    background:var(--bg1);border-bottom:1px solid var(--line);}
+  .toolbar label{font-size:12px;color:var(--sub);display:flex;align-items:center;gap:4px;}
+  .sep{width:1px;align-self:stretch;background:var(--line);margin:0 4px;}
+  .panel{flex:1;display:none;min-height:0;}
+  .panel.visible{display:flex;flex-direction:column;}
+  #canvasScroll{flex:1;overflow:auto;background:#0c0d11;position:relative;padding:20px;
+    display:flex;align-items:flex-start;}
+  #canvasWrap{position:relative;flex-shrink:0;margin:0 auto;overflow:hidden;}
+  #canvasInner{position:relative;transform-origin:0 0;}
+  #canvasInner canvas{position:absolute;top:0;left:0;}
+  #baseCanvas{background:#000;}
+  #drawCanvas{touch-action:none;}
+  #emptyMsg{margin:auto;color:var(--sub);font-size:15px;text-align:center;padding:40px;}
+  #view3d{flex:1;display:none;min-height:0;}
+  #view3d.visible{display:flex;}
+  #plan3dCol{width:46%;min-width:320px;display:flex;flex-direction:column;border-right:1px solid var(--line);min-height:0;}
+  #plan3dCanvasScroll{flex:1;overflow:auto;background:#0c0d11;padding:20px;display:flex;
+    align-items:flex-start;}
+  #canvasWrap3d{flex-shrink:0;margin:0 auto;}
+  #canvasWrap3d canvas{position:absolute;top:0;left:0;}
+  #baseCanvas3d{background:#000;}
+  #drawCanvas3d{touch-action:none;}
+  #shapeListWrap{max-height:34%;overflow-y:auto;border-top:1px solid var(--line);background:var(--bg1);padding:6px 10px;}
+  #shapeList{list-style:none;margin:0;padding:0;font-size:12px;}
+  #shapeList li{display:flex;align-items:center;gap:6px;padding:5px 4px;border-bottom:1px solid var(--bg2);}
+  #shapeList li .swatch{width:12px;height:12px;border-radius:3px;flex-shrink:0;}
+  #shapeList li .lbl{flex:1;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  #shapeList li input[type=number]{width:52px;background:var(--bg2);color:var(--text);border:1px solid var(--line);
+    border-radius:4px;padding:2px 4px;font-size:12px;}
+  #shapeList li button{background:none;border:none;color:#ff6b6b;font-size:14px;padding:2px 6px;}
+  #view3dRight{flex:1;display:flex;flex-direction:column;min-width:0;}
+  #three-container{flex:1;min-height:0;}
+  #three-container canvas{display:block;width:100%;height:100%;}
+  input[type=color]{width:28px;height:26px;border:none;background:none;padding:0;border-radius:4px;overflow:hidden;}
+  input[type=range]{width:80px;}
+  select{background:var(--bg2);color:var(--text);border:1px solid var(--line);border-radius:6px;padding:5px 6px;font-size:12px;}
+  .hint{font-size:11px;color:var(--sub);}
+  #playerToolbar{flex-wrap:wrap;}
+  #specialToolbar{flex-wrap:wrap;}
+  #playerCountLabel{color:var(--accent);font-weight:600;}
+  .modalBackdrop{display:none;position:fixed;inset:0;background:#000a;z-index:50;
+    align-items:center;justify-content:center;}
+  .modalBackdrop.visible{display:flex;}
+  .modalPanel{background:var(--bg1);border:1px solid var(--line);border-radius:10px;
+    padding:18px;width:300px;box-shadow:0 10px 30px #0008;}
+  .modalPanel h3{margin:0 0 14px;font-size:14px;}
+  .modalPanel .modalLabel{display:block;font-size:12px;color:var(--sub);margin:0 0 4px;}
+  .modalPanel select,.modalPanel input[type=text]{width:100%;margin-bottom:12px;
+    padding:6px 8px;border-radius:6px;border:1px solid var(--line);background:var(--bg2);
+    color:var(--text);font-size:13px;box-sizing:border-box;}
+  .modalPanel .modalButtons{display:flex;gap:8px;justify-content:flex-end;margin-top:4px;}
+  .modalPanel .modalCheckRow{display:flex;align-items:center;gap:6px;font-size:12px;
+    color:var(--text);margin-bottom:14px;}
+  #btnPlayerDelete,#btnSpecialDelete{margin-right:auto;color:#ff6b6b;}
+  #rangeScaleLabel{color:var(--accent2);font-weight:600;}
+
+  /* プレイヤー編集モーダル: 基本/ギア タブ */
+  #playerEditorModal{width:min(680px,92vw);max-height:86vh;overflow-y:auto;}
+  #playerModalTabs{display:flex;gap:6px;margin-bottom:14px;}
+  #playerModalTabs button{flex:1;}
+  .playerModalPanel{display:none;}
+  .playerModalPanel.visible{display:block;}
+  #gearGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px;}
+  #gearGrid .gearCol{background:var(--bg2);border:1px solid var(--line);border-radius:8px;padding:8px;}
+  #gearGrid .gearCol h4{margin:0 0 8px;font-size:12px;color:var(--accent);text-align:center;}
+  #gearGrid select{width:100%;margin-bottom:6px;padding:5px 4px;font-size:11px;}
+  #gearGrid .gearMainSelect{border-color:var(--accent2);}
+  #gearResults{background:var(--bg2);border:1px solid var(--line);border-radius:8px;
+    padding:10px 12px;font-size:12px;max-height:220px;overflow-y:auto;}
+  #gearResults h4{margin:0 0 6px;font-size:12px;color:var(--text);}
+  #gearResults table{width:100%;border-collapse:collapse;margin-bottom:10px;}
+  #gearResults td{padding:3px 4px;border-bottom:1px solid var(--bg1);}
+  #gearResults .apBar{display:inline-block;height:6px;background:var(--bg1);border-radius:3px;
+    width:100%;overflow:hidden;vertical-align:middle;}
+  #gearResults .apBarFill{display:block;height:100%;background:var(--accent);}
+  #gearResults .mainOnlyItem{margin-bottom:6px;padding-bottom:6px;border-bottom:1px solid var(--bg1);}
+  #gearResults .mainOnlyItem b{color:var(--accent2);}
+  #gearResults .hint{display:block;margin-top:8px;}
+  #gearResults .emptyNote{color:var(--sub);}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>🗺️ スプラ ステージビューアー</h1>
+    <button class="btn" id="btnPickFolder" title="manifest.jsに無い画像を、その場限りで追加読み込みします">📁 画像フォルダを追加</button>
+    <button class="btn" id="btnExportAll" title="全ステージの注記・3D設定をファイルに書き出す">⤓ データ書き出し</button>
+    <button class="btn" id="btnImportAll" title="書き出したデータを読み込む">⤒ データ読み込み</button>
+    <div class="spacer"></div>
+    <div class="status" id="statusText">画像を読み込んでいます...</div>
+  </header>
+  <div id="main">
+    <aside id="sidebar">
+      <div id="modeTabs"></div>
+      <input type="text" id="stageSearch" placeholder="ステージ名で検索...">
+      <ul id="stageList"></ul>
+    </aside>
+    <section id="viewer">
+      <div id="viewTabs">
+        <button class="btn active" id="tabBtn2D">📝 平面図・注記</button>
+        <button class="btn" id="tabBtn3D">🧊 3Dモデル</button>
+      </div>
+
+      <div class="panel visible" id="view2d">
+        <div class="toolbar" id="toolbar2d">
+          <label><input type="radio" name="t2d" value="select"> 選択/移動</label>
+          <label><input type="radio" name="t2d" value="pen" checked> ペン</label>
+          <label><input type="radio" name="t2d" value="line"> 直線</label>
+          <label><input type="radio" name="t2d" value="arrow"> 矢印</label>
+          <label><input type="radio" name="t2d" value="rect"> 四角</label>
+          <label><input type="radio" name="t2d" value="ellipse"> 楕円</label>
+          <label><input type="radio" name="t2d" value="ruler"> 定規</label>
+          <label><input type="radio" name="t2d" value="compass"> コンパス</label>
+          <label><input type="radio" name="t2d" value="text"> テキスト</label>
+          <label><input type="radio" name="t2d" value="eraser"> 消しゴム</label>
+          <div class="sep"></div>
+          <label>色 <input type="color" id="colorPicker" value="#ff3b30"></label>
+          <label>太さ <input type="range" id="widthPicker" min="1" max="20" value="4"></label>
+          <div class="sep"></div>
+          <button class="btn small" id="btnUndo2d">↶ 元に戻す</button>
+          <button class="btn small" id="btnRedo2d">↷ やり直す</button>
+          <button class="btn small" id="btnClear2d">🗑 全消去</button>
+          <div class="sep"></div>
+          <button class="btn small" id="btnZoomOut">－</button>
+          <span class="hint" id="zoomLabel">100%</span>
+          <button class="btn small" id="btnZoomIn">＋</button>
+          <button class="btn small" id="btnZoomReset">リセット</button>
+          <div class="sep"></div>
+          <button class="btn small" id="btnExportPng">🖼 画像として保存</button>
+          <span class="hint">Delete: 選択中を削除 / Ctrl+Z: 元に戻す / 右クリック押しながら:消しゴム / ホイール押しながら:画像を移動 / 定規・コンパスは選択後に端の丸ハンドルをドラッグで回転・半径変更</span>
+        </div>
+        <div class="toolbar" id="playerToolbar">
+          <span class="hint" style="color:var(--text);font-weight:600;">プレイヤー配置(4対4):</span>
+          <button class="btn small" id="btnAddAlly">🔵 味方を配置</button>
+          <button class="btn small" id="btnAddEnemy">🟠 相手を配置</button>
+          <button class="btn small" id="btnClearPlayers">🗑 配置を全消去</button>
+          <span class="hint" id="playerCountLabel"></span>
+          <div class="sep"></div>
+          <button class="btn small" id="btnCalibrateScale" title="画像上の「射程(試し打ち場のライン)」の目盛りに沿ってドラッグし、目盛りの数を入力してください">📏 射程スケールを設定</button>
+          <span class="hint" id="rangeScaleLabel">射程スケール: 未設定</span>
+          <span class="hint">ドラッグで移動 / ダブルクリックでブキ・スペシャルを編集 / 選択してDeleteで削除</span>
+        </div>
+        <div class="toolbar" id="specialToolbar">
+          <span class="hint" style="color:var(--text);font-weight:600;">スペシャル配置:</span>
+          <select id="specialSelect"></select>
+          <button class="btn small" id="btnAddSpecial">➕ 配置</button>
+          <button class="btn small" id="btnClearSpecials">🗑 スペシャルを全消去</button>
+          <span class="hint">ドラッグで移動 / ダブルクリックで射程1・射程2・爆風込み射程の表示切替 / 選択してDeleteで削除</span>
+        </div>
+        <div id="canvasScroll">
+          <div id="emptyMsg">ステージが選択されていません。<br>左のリストから画像を選んでください。</div>
+          <div id="canvasWrap" style="display:none;">
+            <div id="canvasInner">
+              <canvas id="baseCanvas"></canvas>
+              <canvas id="drawCanvas"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="view3d">
+        <div id="plan3dCol">
+          <div class="toolbar" id="toolbar3d">
+            <label><input type="radio" name="t3d" value="area" checked> エリア(高さ)</label>
+            <label><input type="radio" name="t3d" value="wall"> 壁/段差</label>
+            <div class="sep"></div>
+            <label>色 <input type="color" id="colorPicker3d" value="#4fc3f7"></label>
+            <label>高さ <input type="number" id="heightInput3d" value="1" step="0.1" style="width:56px;"></label>
+            <button class="btn small" id="btnFinishShape">✓ 確定 (Enter)</button>
+            <button class="btn small" id="btnCancelShape">✕ 取消 (Esc)</button>
+            <div class="sep"></div>
+            <span class="hint">クリックで頂点追加 → 確定 / 壁は2点以上でOK / ホイール押しながら:画像を移動</span>
+          </div>
+          <div id="plan3dCanvasScroll">
+            <div id="emptyMsg3d" style="margin:auto;color:var(--sub);">ステージを選択してください。</div>
+            <div id="canvasWrap3d" style="display:none;position:relative;">
+              <canvas id="baseCanvas3d"></canvas>
+              <canvas id="drawCanvas3d"></canvas>
+            </div>
+          </div>
+          <div id="shapeListWrap">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+              <b style="font-size:12px;">配置した形状</b>
+              <button class="btn small" id="btnClearShapes">全削除</button>
+            </div>
+            <ul id="shapeList"></ul>
+          </div>
+        </div>
+        <div id="view3dRight">
+          <div class="toolbar">
+            <button class="btn small" id="btnResetCamera">📷 視点リセット</button>
+            <label><input type="checkbox" id="chkGrid" checked> グリッド表示</label>
+            <label><input type="checkbox" id="chkGround" checked> 平面図テクスチャ</label>
+            <span class="hint">左ドラッグ:回転 / 右ドラッグ:平行移動 / ホイール:ズーム</span>
+          </div>
+          <div id="three-container"></div>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<input type="file" id="folderInput" webkitdirectory directory multiple style="display:none;">
+<input type="file" id="importFileInput" accept="application/json" style="display:none;">
+
+<div id="playerEditorBackdrop" class="modalBackdrop">
+  <div id="playerEditorModal" class="modalPanel">
+    <h3 id="playerEditorTitle"></h3>
+    <div id="playerModalTabs">
+      <button class="btn small active" id="playerTabBasic" type="button">ブキ・スペシャル</button>
+      <button class="btn small" id="playerTabGear" type="button">🛡 ギア</button>
+    </div>
+
+    <div class="playerModalPanel visible" id="playerPanelBasic">
+      <label class="modalLabel">ブキ種別</label>
+      <select id="playerWeaponClass"></select>
+      <label class="modalLabel">ブキ名</label>
+      <select id="playerWeaponName"></select>
+      <label class="modalLabel">スペシャル(ブキ選択で自動選択されます)</label>
+      <select id="playerSpecialName"></select>
+      <label class="modalCheckRow"><input type="checkbox" id="playerRangeVisible"> 射程を円で表示する</label>
+    </div>
+
+    <div class="playerModalPanel" id="playerPanelGear">
+      <p class="hint" style="margin:0 0 10px;">頭/服/靴のメイン・サブギアパワーを選ぶと、選択中のブキの対物性能・ヒト速度などの目安が下に表示されます。</p>
+      <div id="gearGrid"></div>
+      <div id="gearResults"></div>
+    </div>
+
+    <div class="modalButtons">
+      <button class="btn small" id="btnPlayerDelete">削除</button>
+      <button class="btn small" id="btnPlayerCancel">キャンセル</button>
+      <button class="btn small primary" id="btnPlayerSave">保存</button>
+    </div>
+  </div>
+</div>
+
+<div id="specialEditorBackdrop" class="modalBackdrop">
+  <div id="specialEditorModal" class="modalPanel">
+    <h3 id="specialEditorTitle"></h3>
+    <label class="modalCheckRow" id="specialRange1Row"><input type="checkbox" id="specialShowRange1"> <span id="specialRange1Label"></span></label>
+    <label class="modalCheckRow" id="specialRange2Row"><input type="checkbox" id="specialShowRange2"> <span id="specialRange2Label"></span></label>
+    <label class="modalCheckRow" id="specialRangeBlastRow"><input type="checkbox" id="specialShowRangeBlast"> <span id="specialRangeBlastLabel"></span></label>
+    <div class="modalButtons">
+      <button class="btn small" id="btnSpecialDelete">削除</button>
+      <button class="btn small" id="btnSpecialCancel">キャンセル</button>
+      <button class="btn small primary" id="btnSpecialSave">保存</button>
+    </div>
+  </div>
+</div>
+
+<script src="vendor/three.min.js"></script>
+<script src="vendor/OrbitControls.js"></script>
+<script src="manifest.js"></script>
+<script src="weapons.js"></script>
+<script src="gear.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
