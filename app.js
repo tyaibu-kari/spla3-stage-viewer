@@ -26,6 +26,11 @@ let currentItem = null;      // 現在選択中のステージ画像 item
 let currentObjectUrl = null;
 let currentImage = null;     // Image() ロード済み
 
+// 白黒版/カラー版の表示切替(全ステージ共通の好みとして保存)
+// カラー版が用意されているステージが増えてきたら、既定値を"color"に変更してください。
+let colorMode = "bw"; // 'color' | 'bw'
+try { colorMode = localStorage.getItem(`${STORAGE_PREFIX}_colormode`) || "bw"; } catch (e) {}
+
 let activeTab = "2d";        // '2d' | '3d'
 
 // 2D 注記
@@ -179,13 +184,33 @@ function loadFromManifest() {
     statusText.textContent = "manifest.js が見つからないか空です。「画像フォルダを追加」から手動で読み込んでください。";
     return;
   }
-  const items = IMAGE_MANIFEST.map((e) => ({ mode: e.mode, base: e.base, label: e.base, path: e.path }));
+  const items = IMAGE_MANIFEST.map((e) => ({ mode: e.mode, base: e.base, label: e.base, path: e.path, pathColor: e.pathColor || null }));
   addItems(items);
   currentMode = modeOrder[0];
   renderModeTabs();
   renderStageList();
   statusText.textContent = `${countAllItems()} 件の画像を自動読み込みしました(${modeOrder.join(" / ")})。左のリストからステージを選んでください。`;
 }
+
+/* 白黒版/カラー版 切り替え */
+function updateColorModeButton() {
+  const btn = $("btnColorMode");
+  if (!btn) return;
+  if (colorMode === "color") {
+    btn.textContent = "🎨 カラー表示";
+    btn.classList.add("active");
+  } else {
+    btn.textContent = "⚫ 白黒表示";
+    btn.classList.remove("active");
+  }
+}
+updateColorModeButton();
+$("btnColorMode").addEventListener("click", () => {
+  colorMode = colorMode === "color" ? "bw" : "color";
+  try { localStorage.setItem(`${STORAGE_PREFIX}_colormode`, colorMode); } catch (e) {}
+  updateColorModeButton();
+  if (currentItem && !currentItem.file) selectItem(currentItem);
+});
 
 $("btnPickFolder").addEventListener("click", () => folderInput.click());
 
@@ -243,6 +268,12 @@ stageSearchEl.addEventListener("input", renderStageList);
 /* =========================================================
    ステージ選択
    ========================================================= */
+// カラーモードが有効かつそのステージにカラー版があればカラー版のパスを、
+// 無ければ白黒版のパスを返す。手動追加(Fileオブジェクト)のアイテムは対象外。
+function resolveItemPath(item) {
+  if (colorMode === "color" && item.pathColor) return item.pathColor;
+  return item.path;
+}
 function selectItem(item) {
   currentItem = item;
   renderStageList();
@@ -250,7 +281,8 @@ function selectItem(item) {
   const img = new Image();
   img.onload = () => {
     currentImage = img;
-    statusText.textContent = `[${item.mode}] ${item.label}`;
+    const colorNote = !item.file && colorMode === "color" && !item.pathColor ? "(カラー版なし・白黒表示)" : "";
+    statusText.textContent = `[${item.mode}] ${item.label} ${colorNote}`;
     setupCanvases(img);
     annotations = loadAnnotations(item);
     annotHistory = [];
@@ -282,7 +314,7 @@ function selectItem(item) {
     img.src = currentObjectUrl;
   } else {
     // manifest.js 由来の画像 (相対パスでそのまま参照、コピーしない)
-    img.src = item.path;
+    img.src = resolveItemPath(item);
   }
 }
 
